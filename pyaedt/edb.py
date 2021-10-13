@@ -3,7 +3,6 @@
 This module is implicitily loaded in HFSS 3D Layout when launched.
 
 """
-import gc
 import os
 import sys
 import time
@@ -185,12 +184,9 @@ class Edb(object):
         self.simsetupdata = None
         if os.name == "posix":
             clr.ClearProfilerData()
-        time.sleep(2)
-        gc.collect()
 
     @aedt_exception_handler
     def _init_objects(self):
-        time.sleep(1)
         self._components = Components(self)
         self._stackup = EdbStackup(self)
         self._padstack = EdbPadstacks(self)
@@ -367,13 +363,11 @@ class Edb(object):
         self._messenger.add_info_message("Cell {} Opened".format(self._active_cell.GetName()))
 
         if self._db and self._active_cell:
-            dllpath = os.path.join(os.path.abspath(os.path.dirname(__file__)), "dlls", "EDBLib", "DataModel.dll")
+            dllpath = os.path.join(os.path.abspath(os.path.dirname(__file__)), "dlls", "EDBLib")
             self._messenger.add_info_message(dllpath)
+            self.layout_methods.LoadDataModel(dllpath,edb)
+
             self.layout_methods.LoadDataModel(dllpath)
-            dllpath = os.path.join(os.path.abspath(os.path.dirname(__file__)), "dlls", "EDBLib",
-                                   "IPC_2581_DataModel.dll")
-            self.layout_methods.LoadDataModel(dllpath)
-            time.sleep(3)
             retry_ntimes(
                 10,
                 self.layout_methods.InitializeBuilder,
@@ -432,7 +426,6 @@ class Edb(object):
                 self.layout_methods.LoadDataModel(dllpath)
                 if not os.path.exists(self.edbpath):
                     os.makedirs(self.edbpath)
-                time.sleep(3)
                 self.builder = EdbBuilder(self.edbutils, self._db, self._active_cell)
                 # self.builder = retry_ntimes(
                 #     10,
@@ -488,7 +481,6 @@ class Edb(object):
             dllpath = os.path.join(os.path.abspath(os.path.dirname(__file__)), "dlls", "EDBLib",
                                    "IPC_2581_DataModel.dll")
             self.layout_methods.LoadDataModel(dllpath)
-            time.sleep(3)
             retry_ntimes(
                 10,
                 self.layout_methods.InitializeBuilder,
@@ -762,17 +754,11 @@ class Edb(object):
             ``True`` when successful, ``False`` when failed.
 
         """
-        time.sleep(1)
         self._db.Close()
+        if "edbutils" in dir(self):
+            self.edbutils.Logger.Disable = True
         self._messenger.add_info_message("Database successfully closed.")
-        # try:
-        #     self._db.Close()
-        # except:
-        #     self._messenger.add_warning_message("Cannot Close dB")
-        time.sleep(1)
         self._clean_variables()
-        gc.collect()
-        # gc.collect()
         return True
 
     @aedt_exception_handler
