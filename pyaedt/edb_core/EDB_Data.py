@@ -32,7 +32,7 @@ class EDBLayer(object):
         self._top_bottom_association = None
         self._id = None
         self._edb = parent._edb
-        self._active_layout = parent._active_layout
+        self._active_layout = parent.active_layout
         self._parent = parent
         self.init_vals()
 

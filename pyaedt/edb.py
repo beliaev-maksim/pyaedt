@@ -3,6 +3,7 @@
 This module is implicitily loaded in HFSS 3D Layout when launched.
 
 """
+import gc
 import os
 import sys
 import time
@@ -168,6 +169,7 @@ class Edb(object):
     def _clean_variables(self):
         """Initialize internal variables and perform garbage collection."""
         self._components = None
+        self._active_layout = None
         self._core_primitives = None
         self._stackup = None
         self._padstack = None
@@ -340,6 +342,8 @@ class Edb(object):
         self._messenger.add_info_message("EDB Standalone {}".format(self.standalone))
         try:
             db = self.edb.Database.Open(self.edbpath, self.isreadonly)
+            self._messenger.add_info_message("DataBase Opened")
+
         except Exception as e:
             db = None
             self._messenger.add_error_message("Builder is not Initialized.")
@@ -365,9 +369,7 @@ class Edb(object):
         if self._db and self._active_cell:
             dllpath = os.path.join(os.path.abspath(os.path.dirname(__file__)), "dlls", "EDBLib")
             self._messenger.add_info_message(dllpath)
-            self.layout_methods.LoadDataModel(dllpath,edb)
-
-            self.layout_methods.LoadDataModel(dllpath)
+            self.layout_methods.LoadDataModel(dllpath, self.edbversion)
             retry_ntimes(
                 10,
                 self.layout_methods.InitializeBuilder,
@@ -418,25 +420,12 @@ class Edb(object):
             )
             if self._active_cell is None:
                 self._active_cell = list(self._db.TopCircuitCells)[0]
-            dllpath = os.path.join(os.path.abspath(os.path.dirname(__file__)), "dlls", "EDBLib", "DataModel.dll")
+            dllpath = os.path.join(os.path.abspath(os.path.dirname(__file__)), "dlls", "EDBLib")
             if self._db and self._active_cell:
-                self.layout_methods.LoadDataModel(dllpath)
-                dllpath = os.path.join(os.path.abspath(os.path.dirname(__file__)), "dlls", "EDBLib",
-                                       "IPC_2581_DataModel.dll")
-                self.layout_methods.LoadDataModel(dllpath)
+                self.layout_methods.LoadDataModel(dllpath, self.edbversion)
                 if not os.path.exists(self.edbpath):
                     os.makedirs(self.edbpath)
                 self.builder = EdbBuilder(self.edbutils, self._db, self._active_cell)
-                # self.builder = retry_ntimes(
-                #     10,
-                #     self.layout_methods.GetBuilder,
-                #     self._db,
-                #     self._active_cell,
-                #     self.edbpath,
-                #     self.edbversion,
-                #     self.standalone,
-                #     True
-                # )
                 self._init_objects()
                 return self.builder
             else:
@@ -475,12 +464,9 @@ class Edb(object):
         if not self.cellname:
             self.cellname = generate_unique_name("Cell")
         self._active_cell = self.edb.Cell.Cell.Create(self._db, self.edb.Cell.CellType.CircuitCell, self.cellname)
-        dllpath = os.path.join(os.path.dirname(__file__), "dlls", "EDBLib", "DataModel.dll")
+        dllpath = os.path.join(os.path.dirname(__file__), "dlls", "EDBLib")
         if self._db and self._active_cell:
-            self.layout_methods.LoadDataModel(dllpath)
-            dllpath = os.path.join(os.path.abspath(os.path.dirname(__file__)), "dlls", "EDBLib",
-                                   "IPC_2581_DataModel.dll")
-            self.layout_methods.LoadDataModel(dllpath)
+            self.layout_methods.LoadDataModel(dllpath, self.edbversion)
             retry_ntimes(
                 10,
                 self.layout_methods.InitializeBuilder,
@@ -672,9 +658,10 @@ class Edb(object):
     @property
     def active_layout(self):
         """Active layout."""
-        if self._active_cell:
-            return self.active_cell.GetLayout()
-        return None
+        if self._active_cell and not self._active_layout:
+            self._active_layout = self.active_cell.GetLayout()
+        return self._active_layout
+
 
     # @property
     # def builder(self):
@@ -757,8 +744,16 @@ class Edb(object):
         self._db.Close()
         if "edbutils" in dir(self):
             self.edbutils.Logger.Disable = True
+        del self.builder
+        del self._db
+        del self._active_cell
+        del self.active_layout
+
+        del self.edblib
+        del self.edbutils
         self._messenger.add_info_message("Database successfully closed.")
         self._clean_variables()
+        gc.collect()
         return True
 
     @aedt_exception_handler
