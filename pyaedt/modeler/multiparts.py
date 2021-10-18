@@ -178,7 +178,7 @@ class MultiPartComponent(object):
 
     @property
     def index(self):
-        """Track number of self._name using MultiPartComponent._names.
+        """Number of multi-part components.
 
         Returns
         -------
@@ -353,7 +353,7 @@ class MultiPartComponent(object):
 
     @property
     def use_global_cs(self):
-        """Use global coordinate system.
+        """Global coordinate system.
 
         Returns
         -------
@@ -364,7 +364,7 @@ class MultiPartComponent(object):
 
     @property
     def offset(self):
-        """Offset for multi-part component.
+        """Offset values for the multi-part component.
 
         Returns
         -------
@@ -381,7 +381,9 @@ class MultiPartComponent(object):
 
     @aedt_exception_handler
     def position_in_app(self, app):
-        """Set up design variables and values to enable motion for the multi-part 3D component in the application.
+        """
+        Set up design variables and values to enable motion for
+        the multi-part 3d component in the application.
 
         Parameters
         ----------

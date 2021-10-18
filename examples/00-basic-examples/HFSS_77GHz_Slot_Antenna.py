@@ -9,6 +9,7 @@ import os
 from pyaedt import Hfss
 import tempfile
 from pyaedt.generic.general_methods import generate_unique_name
+from copy import copy
 ###############################################################################
 # Launch AEDT and define some path and file name information.
 # ~~~~~~~~~~~~~~~~~~~~~~~
@@ -23,9 +24,9 @@ proj_name = os.path.join(tmpfold, generate_unique_name("slot") + ".aedt")
 # ~~~~~~~~~~~~~~~~~~~~~~~
 # The :class:`pyaedt.Hfss` class initializes AEDT and inserts an HFSS project.
 
-hfss =  Hfss(projectname=proj_name,
-          designname=design_name,
-          student_version=True)
+hfss = Hfss(projectname=proj_name,
+            designname=design_name,
+            student_version=True)
 ###############################################################################
 # Define parameters
 # ~~~~~~~~~~~~~~~
@@ -59,8 +60,22 @@ for k, v in params.items():
 # Draw the layers.
 # ~~~~~~~~~~~~~~~
 
-plane_origin = ["-x_size/2", "-y_size/2", "-t_oxide/2"]
-plane_xy = ["x_size", "y_size"]
+stackup_origin = ["-x_size/2", "-y_size/2", "0"]
+plane_xy_size = ["x_size", "y_size"]
+layer_definitions = [{"thickness": "t_metal", "material": "copper", "name": "bottom"},
+                     {"thickness": "t_oxide", "material": "si02", "name": "oxide"},
+                     {"thickness": "t_metal", "material": "copper", "name": "top"}]
+layers = []
+o = stackup_origin
+for n, l in enumerate(layer_definitions):
+    o[2] += "+" + l["thickness"]  # Update height in z-dimension for box origin.
+    box_size = copy(plane_xy_size)
+    box_size.append(l["thickness"])  # Append thickness to xy size of layer box.
+    layers.append(hfss.modeler.primitives.create_box(o, box_size,
+                                                     name=l["name"],
+                                                     matname=l["material"])
+    )
+
 bottom_plane = hfss.modeler.primitives.create_rectangle(0, plane_origin,
                                                         plane_xy,
                                                         name="bottom_plane",
@@ -164,6 +179,10 @@ setup.sweeps[1].update()
 
 hfss.create_open_region(Frequency="77GHz", Boundary="Radiation", ApplyInfiniteGP=True)
 
+###############################################################################
+# Create the infinite sphere
+# ---------------------------
+# A setup with a sweep will be used to run the simulation.
 ###############################################################################
 # Save and Run the Simulation
 # ---------------------------
