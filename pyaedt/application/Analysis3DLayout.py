@@ -77,10 +77,10 @@ class FieldAnalysis3DLayout(Analysis):
             close_on_exit,
             student_version,
         )
-        self._messenger.add_info_message("Analysis Loaded")
+        self.logger.glb.info("Analysis Loaded")
         self._modeler = Modeler3DLayout(self)
         self._modeler.primitives.init_padstacks()
-        self._messenger.add_info_message("Modeler Loaded")
+        self.logger.glb.info("Modeler Loaded")
         self._mesh = Mesh(self)
         # self._post = PostProcessor(self)
 
@@ -205,7 +205,7 @@ class FieldAnalysis3DLayout(Analysis):
         if not reclist:
             reclist = [i for i in self.get_excitations_name if rx_prefix in i]
         if len(trlist) != len(reclist):
-            self._messenger.add_error_message("TX and RX should be same length lists")
+            self.logger.glb.error("The TX and RX lists should be same length.")
             return False
         for i, j in zip(trlist, reclist):
             spar.append("S({},{})".format(i, j))
@@ -382,3 +382,36 @@ class FieldAnalysis3DLayout(Analysis):
         setup = Setup3DLayout(self, setuptype, setupname, isnewsetup=False)
         self.analysis_setup = setupname
         return setup
+
+    @aedt_exception_handler
+    def delete_setup(self, setupname):
+        """Delete a setup.
+
+        Parameters
+        ----------
+        setupname : str
+            Name of the setup.
+
+        Returns
+        -------
+        bool
+            ``True`` when successful, ``False`` when failed.
+
+        Examples
+        --------
+        Create a setup and then delete it.
+
+        >>> import pyaedt
+        >>> hfss3dlayout = pyaedt.Hfss3dLayout()
+        >>> setup1 = hfss3dlayout.create_setup(setupname='Setup1')
+        >>> hfss3dlayout.delete_setup(setupname='Setup1')
+        ...
+        pyaedt Info: Sweep was deleted correctly.
+        """
+        if setupname in self.existing_analysis_setups:
+            self.osolution.Delete(setupname)
+            for s in self.setups:
+                if s.name == setupname:
+                    self.setups.remove(s)
+            return True
+        return False

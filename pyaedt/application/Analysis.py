@@ -99,13 +99,13 @@ class Analysis(Design, object):
             close_on_exit,
             student_version,
         )
-        self.logger.info("Design Loaded")
+        self.logger.glb.info("Design Loaded")
         self._setup = None
         if setup_name:
             self.analysis_setup = setup_name
         self.solution_type = solution_type
         self._materials = Materials(self)
-        self.logger.info("Materials Loaded")
+        self.logger.glb.info("Materials Loaded")
         self._post = PostProcessor(self)
         self._available_variations = self.AvailableVariations(self)
         self.setups = [self.get_setup(setup_name) for setup_name in self.setup_names]
@@ -230,7 +230,7 @@ class Analysis(Design, object):
 
         Returns
         -------
-        :class:`pyaedt.modules.PostProcessor.PostProcessor`
+        :class:`pyaedt.modules.AdvancedPostProcessing.PostProcessor`
             PostProcessor object.
         """
         return self._post
@@ -292,17 +292,24 @@ class Analysis(Design, object):
         """
         setup_list = self.existing_analysis_setups
         sweep_list = []
-        for el in setup_list:
-            if self.solution_type in SetupKeys.defaultAdaptive.keys():
-                setuptype = SetupKeys.defaultAdaptive[self.solution_type]
-                if setuptype:
-                    sweep_list.append(el + " : " + setuptype)
-            try:
-                sweeps = list(self.oanalysis.GetSweeps(el))
-            except:
-                sweeps = []
-            for sw in sweeps:
-                sweep_list.append(el + " : " + sw)
+        if self.solution_type == "HFSS3DLayout" or self.solution_type == "HFSS 3D Layout Design":
+            sweep_list = self.oanalysis.GetAllSolutionNames()
+            sweep_list = [i for i in sweep_list if "Adaptive Pass" not in i]
+            sweep_list.reverse()
+        else:
+            for el in setup_list:
+                if self.solution_type == "HFSS3DLayout" or self.solution_type == "HFSS 3D Layout Design":
+                    sweeps = self.oanalysis.GelAllSolutionNames()
+                elif self.solution_type in SetupKeys.defaultAdaptive.keys():
+                    setuptype = SetupKeys.defaultAdaptive[self.solution_type]
+                    if setuptype:
+                        sweep_list.append(el + " : " + setuptype)
+                try:
+                    sweeps = list(self.oanalysis.GetSweeps(el))
+                except:
+                    sweeps = []
+                for sw in sweeps:
+                    sweep_list.append(el + " : " + sw)
         return sweep_list
 
     @property
@@ -404,7 +411,7 @@ class Analysis(Design, object):
 
         Returns
         -------
-        list
+        SetupTypes
             List of all simulation setup types categorized by application.
         """
         return SetupTypes()
@@ -415,7 +422,7 @@ class Analysis(Design, object):
 
         Returns
         -------
-        list
+        SolutionType
             List of all solution type categorized by application.
         """
         return SolutionType()
@@ -428,7 +435,7 @@ class Analysis(Design, object):
             data_vals = self.design_properties["ModelSetup"]["GeometryCore"]["GeometryOperations"][
                 "SubModelDefinitions"
             ]["NativeComponentDefinition"]
-            if not isinstance(data_vals, list) and type(data_vals) is OrderedDict:
+            if not isinstance(data_vals, list) and isinstance(data_vals, (OrderedDict, dict)):
                 boundaries.append(
                     NativeComponentObject(
                         self,
@@ -439,7 +446,7 @@ class Analysis(Design, object):
                 )
             for ds in data_vals:
                 try:
-                    if type(ds) is OrderedDict:
+                    if isinstance(ds, (OrderedDict, dict)):
                         boundaries.append(
                             NativeComponentObject(
                                 self,
@@ -772,6 +779,39 @@ class Analysis(Design, object):
         return setup
 
     @aedt_exception_handler
+    def delete_setup(self, setupname):
+        """Delete a setup.
+
+        Parameters
+        ----------
+        setupname : str
+            Name of the setup.
+
+        Returns
+        -------
+        bool
+            ``True`` when successful, ``False`` when failed.
+
+        Examples
+        --------
+        Create a setup and then delete it.
+
+        >>> import pyaedt
+        >>> hfss = pyaedt.Hfss()
+        >>> setup1 = hfss.create_setup(setupname='Setup1')
+        >>> hfss.delete_setup(setupname='Setup1')
+        ...
+        pyaedt Info: Sweep was deleted correctly.
+        """
+        if setupname in self.existing_analysis_setups:
+            self.oanalysis.DeleteSetups([setupname])
+            for s in self.setups:
+                if s.name == setupname:
+                    self.setups.remove(s)
+            return True
+        return False
+
+    @aedt_exception_handler
     def edit_setup(self, setupname, properties_dict):
         """Modify a setup.
 
@@ -923,14 +963,14 @@ class Analysis(Design, object):
            ``True`` when successful, ``False`` when failed.
         """
         if name in self.existing_analysis_setups:
-            self._messenger.add_info_message("Solving design setup {}".format(name))
+            self.logger.glb.info("Solving design setup %s", name)
             self.odesign.Analyze(name)
         else:
             try:
-                self._messenger.add_info_message("Solving Optimetrics")
+                self.logger.glb.info("Solving Optimetrics")
                 self.ooptimetrics.SolveSetup(name)
             except:
-                self._messenger.add_error_message("Setup Not found {}".format(name))
+                self.logger.glb.error("Setup Not found %s", name)
                 return False
         return True
 
@@ -1037,11 +1077,11 @@ class Analysis(Design, object):
                     r"\\\\\\\\" + clustername + r"\\\\AnsysEM\\\\AnsysEM{}\\\\Linux64\\\\ansysedt".format(version)
                 )
             else:
-                self._messenger.add_error_message("Aedt Path doesn't exists. Please provide a full path")
+                self.logger.glb.error("AEDT path does not exist. Please provide a full path.")
                 return False
         else:
             if not os.path.exists(aedt_full_exe_path):
-                self._messenger.add_error_message("Aedt Path doesn't exists. Please provide a full path")
+                self.logger.glb.error("Aedt Path doesn't exists. Please provide a full path")
                 return False
             aedt_full_exe_path.replace("\\", "\\\\")
 

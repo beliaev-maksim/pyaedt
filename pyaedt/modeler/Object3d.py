@@ -292,10 +292,21 @@ class EdgePrimitive(EdgeTypePrimitive, object):
         self.id = edge_id
         self._parent = parent
         self._oeditor = parent.m_Editor
-        self.vertices = []
-        for vertex in self._oeditor.GetVertexIDsFromEdge(edge_id):
+
+    @property
+    def vertices(self):
+        """Vertices list.
+
+        Returns
+        -------
+        list
+            List of vertices.
+        """
+        vertices = []
+        for vertex in self._oeditor.GetVertexIDsFromEdge(self.id):
             vertex = int(vertex)
-            self.vertices.append(VertexPrimitive(parent, vertex))
+            vertices.append(VertexPrimitive(self._parent, vertex))
+        return vertices
 
     @property
     def midpoint(self):
@@ -351,14 +362,35 @@ class FacePrimitive(object):
         self._id = id
         self._parent = parent
         self._oeditor = self._parent.m_Editor
-        self.edges = []
-        self.vertices = []
-        for edge in self._oeditor.GetEdgeIDsFromFace(self.id):
-            edge = int(edge)
-            self.edges.append(EdgePrimitive(parent, edge))
-        for vertex in self._oeditor.GetVertexIDsFromFace(self.id):
+
+    @property
+    def edges(self):
+        """Edges lists.
+
+        Returns
+        -------
+        list
+            List of Edges.
+        """
+        edges = []
+        for edge in list(self._oeditor.GetEdgeIDsFromFace(self.id)):
+            edges.append(EdgePrimitive(self._parent, int(edge)))
+        return edges
+
+    @property
+    def vertices(self):
+        """Vertices lists.
+
+        Returns
+        -------
+        list
+            List of Vertices.
+        """
+        vertices = []
+        for vertex in list(self._oeditor.GetVertexIDsFromFace(self.id)):
             vertex = int(vertex)
-            self.vertices.append(VertexPrimitive(parent, vertex))
+            vertices.append(VertexPrimitive(self._parent, int(vertex)))
+        return vertices
 
     @property
     def id(self):
@@ -596,6 +628,10 @@ class Object3d(object):
         self._is_updated = False
         self._all_props = None
         self._surface_material = None
+        self._color = None
+        self._wireframe = None
+        self._part_coordinate_system = None
+        self._model = None
 
     @property
     def bounding_box(self):
@@ -642,7 +678,7 @@ class Object3d(object):
 
         """
         faces = []
-        for face in self.m_Editor.GetFaceIDs(self.name):
+        for face in list(self.m_Editor.GetFaceIDs(self.name)):
             face = int(face)
             faces.append(FacePrimitive(self, face))
         return faces
@@ -798,6 +834,11 @@ class Object3d(object):
         return self._parent._messenger
 
     @property
+    def logger(self):
+        """Logger."""
+        return self._parent.logger
+
+    @property
     def surface_material_name(self):
         """Surface material name of the object.
 
@@ -807,7 +848,9 @@ class Object3d(object):
             Name of the surface material when successful, ``None`` and a warning message otherwise.
 
         """
-        if "Surface Material" in self.valid_properties:
+        if self._surface_material is not None:
+            return self._surface_material
+        if "Surface Material" in self.valid_properties and self.model:
             self._surface_material = retry_ntimes(
                 10, self.m_Editor.GetPropertyValue, "Geometry3DAttributeTab", self._m_name, "Surface Material"
             )
@@ -823,11 +866,13 @@ class Object3d(object):
             Name of the group.
 
         """
+        if self._m_groupName is not None:
+            return self._m_groupName
         if "Group" in self.valid_properties:
-            self.m_groupName = retry_ntimes(
+            self._m_groupName = retry_ntimes(
                 10, self.m_Editor.GetPropertyValue, "Geometry3DAttributeTab", self._m_name, "Group"
             )
-            return self.m_groupName
+            return self._m_groupName
 
     @property
     def material_name(self):
@@ -839,7 +884,9 @@ class Object3d(object):
             Name of the material when successful, ``None`` and a warning message otherwise.
 
         """
-        if "Material" in self.valid_properties:
+        if self._material_name is not None:
+            return self._material_name
+        if "Material" in self.valid_properties and self.model:
             mat = retry_ntimes(10, self.m_Editor.GetPropertyValue, "Geometry3DAttributeTab", self._m_name, "Material")
             self._material_name = ""
             if mat:
@@ -849,22 +896,25 @@ class Object3d(object):
     @material_name.setter
     def material_name(self, mat):
         if self._parent.materials.checkifmaterialexists(mat):
-            self._material_name = mat
+            if not self.model:
+                self.model = True
             vMaterial = ["NAME:Material", "Value:=", chr(34) + mat + chr(34)]
             self._change_property(vMaterial)
-            self._material_name = mat
+            self._material_name = mat.lower()
         else:
-            self._messenger.add_warning_message("Material {} does not exist.".format(mat))
+            self.logger.glb.warning("Material %s does not exist.", mat)
 
     @surface_material_name.setter
     def surface_material_name(self, mat):
         try:
+            if not self.model:
+                self.model = True
             self._surface_material = mat
             vMaterial = ["NAME:Surface Material", "Value:=", '"' + mat + '"']
             self._change_property(vMaterial)
             self._surface_material = mat
         except:
-            self._messenger.add_warning_message("Material {} does not exist".format(mat))
+            self.logger.glb.warning("Material %s does not exist", mat)
 
     @property
     def id(self):
@@ -971,6 +1021,8 @@ class Object3d(object):
         >>> part.color = (255,255,0)
 
         """
+        if self._color is not None:
+            return self._color
         if "Color" in self.valid_properties:
             color = retry_ntimes(10, self.m_Editor.GetPropertyValue, "Geometry3DAttributeTab", self._m_name, "Color")
             if color:
@@ -1024,6 +1076,8 @@ class Object3d(object):
         If the value is outside the range, then apply a limit. If the value is not a valid number, set to ``0.0``.
 
         """
+        if self._transparency is not None:
+            return self._transparency
         if "Transparent" in self.valid_properties:
             transp = retry_ntimes(
                 10, self.m_Editor.GetPropertyValue, "Geometry3DAttributeTab", self._m_name, "Transparent"
@@ -1065,6 +1119,8 @@ class Object3d(object):
             Name of the part coordinate system.
 
         """
+        if self._part_coordinate_system is not None:
+            return self._part_coordinate_system
         if "Orientation" in self.valid_properties:
             self._part_coordinate_system = retry_ntimes(
                 10, self.m_Editor.GetPropertyValue, "Geometry3DAttributeTab", self._m_name, "Orientation"
@@ -1086,7 +1142,9 @@ class Object3d(object):
             ``True`` when ``"solve-inside"`` is activated for the part, ``False`` otherwise.
 
         """
-        if "Solve Inside" in self.valid_properties:
+        if self._solve_inside is not None:
+            return self._solve_inside
+        if "Solve Inside" in self.valid_properties and self.model:
             solveinside = retry_ntimes(
                 10, self.m_Editor.GetPropertyValue, "Geometry3DAttributeTab", self._m_name, "Solve Inside"
             )
@@ -1095,18 +1153,19 @@ class Object3d(object):
             else:
                 self._solve_inside = True
             return self._solve_inside
+        return None
 
     @solve_inside.setter
     def solve_inside(self, S):
+        if not self.model:
+            self.model = True
         vSolveInside = []
         # fS = self._to_boolean(S)
         fs = S
         vSolveInside.append("NAME:Solve Inside")
         vSolveInside.append("Value:=")
         vSolveInside.append(fs)
-
         self._change_property(vSolveInside)
-
         self._solve_inside = fs
 
     @property
@@ -1119,6 +1178,8 @@ class Object3d(object):
             ``True`` when wirefame is activated for the part, ``False`` otherwise.
 
         """
+        if self._wireframe is not None:
+            return self._wireframe
         if "Display Wireframe" in self.valid_properties:
             wireframe = retry_ntimes(
                 10, self.m_Editor.GetPropertyValue, "Geometry3DAttributeTab", self._m_name, "Display Wireframe"
@@ -1147,6 +1208,8 @@ class Object3d(object):
             ``True`` when model, ``False`` otherwise.
 
         """
+        if self._model is not None:
+            return self._model
         if "Model" in self.valid_properties:
             mod = retry_ntimes(10, self.m_Editor.GetPropertyValue, "Geometry3DAttributeTab", self._m_name, "Model")
             if mod == "false" or mod == "False":

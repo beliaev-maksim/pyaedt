@@ -127,7 +127,7 @@ class NativeComponentObject(BoundaryCommon, object):
 
     def _update_props(self, d, u):
         for k, v in u.items():
-            if isinstance(v, dict) or type(v) is OrderedDict:
+            if isinstance(v, (dict, OrderedDict)):
                 if k not in d:
                     d[k] = OrderedDict({})
                 d[k] = self._update_props(d[k], v)
@@ -483,14 +483,14 @@ class BoundaryObject(BoundaryCommon, object):
         elif self.type == "Coil":
             self._parent.oboundary.EditCoil(self.name, self._get_args())
         elif self.type == "Source":
-            self._parent.oboundary.EditSource(self.name, self._get_args())
+            self._parent.oboundary.EditTerminal(self.name, self._get_args())
         elif self.type == "Sink":
             self._parent.oboundary.EditSink(self.name, self._get_args())
-        elif self.type == "CircuitPort":
+        elif self.type in ["CircuitPort", "Circuit Port"]:
             self._parent.oboundary.EditCircuitPort(self.name, self._get_args())
-        elif self.type == "LumpedPort":
+        elif self.type in ["LumpedPort", "Lumped Port"]:
             self._parent.oboundary.EditLumpedPort(self.name, self._get_args())
-        elif self.type == "WavePort":
+        elif self.type in ["WavePort", "Wave Port"]:
             self._parent.oboundary.EditWavePort(self.name, self._get_args())
         elif self.type == "SetSBRTxRxSettings":
             self._parent.oboundary.SetSBRTxRxSettings(self._get_args())

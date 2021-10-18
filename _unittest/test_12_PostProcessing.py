@@ -51,17 +51,27 @@ class TestClass:
         intrinsic = {"Freq": "5GHz", "Phase": "180deg"}
         plot1 = self.aedtapp.post.create_fieldplot_cutplane(cutlist, quantity_name, setup_name, intrinsic)
         plot1.IsoVal = "Tone"
-        assert plot1.modify_folder()
+        assert plot1.update_field_plot_settings()
         image_file = self.aedtapp.post.plot_field_from_fieldplot(
             plot1.name,
             project_path=self.local_scratch.path,
             meshplot=False,
             setup_name=setup_name,
             imageformat="jpg",
-            view="iso",
+            view="isometric",
             off_screen=True,
         )
         assert os.path.exists(image_file[0])
+
+    def test_01B_Field_Plot(self):
+        cutlist = ["Global:XY", "Global:XZ", "Global:YZ"]
+        setup_name = self.aedtapp.existing_analysis_sweeps[0]
+        quantity_name = "ComplexMag_E"
+        intrinsic = {"Freq": "5GHz", "Phase": "180deg"}
+        min_value = self.aedtapp.post.get_scalar_field_value(quantity_name, "Minimum", setup_name, intrinsics="5GHz")
+        plot1 = self.aedtapp.post.create_fieldplot_cutplane(cutlist, quantity_name, setup_name, intrinsic)
+        plot1.IsoVal = "Tone"
+        assert plot1.change_plot_scale(min_value, "30000")
 
     @pytest.mark.skipif(config["build_machine"] == True or is_ironpython, reason="Not running in non-graphical mode")
     def test_01_Animate_plt(self):
@@ -89,8 +99,12 @@ class TestClass:
         intrinsic = {"Freq": "5GHz", "Phase": "180deg"}
         vollist = ["NewObject_IJD39Q"]
         plot2 = self.aedtapp.post.create_fieldplot_volume(vollist, quantity_name2, setup_name, intrinsic)
-        self.aedtapp.post.export_field_image_with_View(plot2.name, os.path.join(self.local_scratch.path, "prova2.jpg"))
+
+        self.aedtapp.post.export_field_image_with_view(plot2.name, plot2.plotFolder,
+                                                       os.path.join(self.local_scratch.path, "prova2.jpg"))
         assert os.path.exists(os.path.join(self.local_scratch.path, "prova2.jpg"))
+        assert os.path.exists(plot2.export_image(os.path.join(self.local_scratch.path, "test_x.jpg"),
+                              orientation="top"))
 
     def test_03_create_scattering(self):
         setup_name = "Setup1 : Sweep"
@@ -106,8 +120,11 @@ class TestClass:
             for el2 in portnames:
                 trace_names.append("S(" + el + "," + el2 + ")")
         cxt = ["Domain:=", "Sweep"]
-        families = ["Freq:=", ["All"]]
-        my_data = self.aedtapp.post.get_report_data(expression=trace_names)
+        families = {"Freq": ["All"]}
+        for el in self.aedtapp.available_variations.nominal_w_values_dict:
+            families[el] = self.aedtapp.available_variations.nominal_w_values_dict[el]
+
+        my_data = self.aedtapp.post.get_report_data(expression=trace_names, families_dict=families)
         assert my_data
         assert my_data.sweeps
         assert my_data.expressions

@@ -901,6 +901,11 @@ class Primitives(object):
         return self._parent._messenger
 
     @property
+    def logger(self):
+        """Logger."""
+        return self._parent.logger
+
+    @property
     def version(self):
         """Version."""
         return self._parent._aedt_version
@@ -1426,10 +1431,8 @@ class Primitives(object):
             if el not in self.object_names and not list(self.oeditor.GetObjectsInGroup(el)):
                 objects.remove(el)
         if not objects:
-            self._messenger.add_warning_message("No objects to delete")
+            self.logger.glb.warning("No objects to delete")
             return False
-        self._messenger.add_info_message("Deleting objects: {}".format(objects))
-
         slice = min(100, len(objects))
         num_objects = len(objects)
         remaining = num_objects
@@ -1440,7 +1443,7 @@ class Primitives(object):
             try:
                 self.oeditor.Delete(arg)
             except:
-                self._messenger.add_warning_message("Failed to delete {}".format(objects_str))
+                self.logger.glb.warning("Failed to delete {}".format(objects_str))
             remaining -= slice
             if remaining > 0:
                 objects = objects[slice:]
@@ -1449,8 +1452,7 @@ class Primitives(object):
 
         if len(objects) > 0:
             self.cleanup_objects()
-            self._messenger.add_info_message("Deleted {} Objects".format(num_objects))
-
+            self.logger.glb.info("Deleted {} Objects".format(num_objects, objects_str))
         return True
 
     @aedt_exception_handler
@@ -1481,7 +1483,7 @@ class Primitives(object):
                 if contained_string.lower() in el.lower():
                     self.delete(el)
                     num_del += 1
-        self._messenger.add_info_message("Deleted {} objects".format(num_del))
+        self.logger.glb.info("Deleted %s objects", num_del)
         return True
 
     @aedt_exception_handler
@@ -1594,8 +1596,6 @@ class Primitives(object):
         all_objects = self.object_names
         all_unclassified = self.unclassified_objects
         for old_id, obj in self.objects.items():
-            if obj.name == "box2":
-                pass
             if obj.name in all_objects or obj.name in all_unclassified:
                 updated_id = obj.id  # By calling the object property we get the new id
                 new_object_id_dict[obj.name] = updated_id
@@ -2131,7 +2131,7 @@ class Primitives(object):
         try:
             c = self.oeditor.GetFaceCenter(face_id)
         except:
-            self._messenger.add_warning_message("Non Planar Faces doesn't provide any Face Center")
+            self.logger.glb.warning("Non Planar Faces doesn't provide any Face Center")
             return False
         center = [float(i) for i in c]
         return center
@@ -2267,7 +2267,7 @@ class Primitives(object):
         for obj in object_list:
             vArg1[2] = obj
             try:
-                edgeID = self.oeditor.GetEdgeByPosition(vArg1)
+                edgeID = int(self.oeditor.GetEdgeByPosition(vArg1))
                 return edgeID
             except Exception as e:
                 pass
@@ -2715,7 +2715,7 @@ class Primitives(object):
 
         Returns
         -------
-        type
+        int
             Edge ID of the edge closest to this position.
 
         """
@@ -2736,7 +2736,7 @@ class Primitives(object):
                 midpoint = [i * 1000 for i in midpoint]
             d = GeometryOperators.points_distance(midpoint, [position.X, position.Y, position.Z])
             if d < distance:
-                selected_edge = edge
+                selected_edge = int(edge)
                 distance = d
         return selected_edge
 
@@ -2795,9 +2795,8 @@ class Primitives(object):
                     return matname, True
 
             else:
-                self._messenger.add_warning_message(
-                    "Material {} doesn not exists. Assigning default material".format(matname)
-                )
+                self.logger.glb.warning(
+                    "Material %s doesn not exists. Assigning default material", matname)
         if self._parent._design_type == "HFSS":
             return defaultmatname, self._parent.materials.material_keys[defaultmatname].is_dielectric()
         else:
@@ -2877,7 +2876,7 @@ class Primitives(object):
         for el in self._parent.design_properties["ModelSetup"]["GeometryCore"]["GeometryOperations"]["ToplevelParts"][
             "GeometryPart"
         ]:
-            if isinstance(el, OrderedDict):
+            if isinstance(el, (OrderedDict, dict)):
                 attribs = el["Attributes"]
             else:
                 attribs = self._parent.design_properties["ModelSetup"]["GeometryCore"]["GeometryOperations"][
@@ -2904,9 +2903,9 @@ class Primitives(object):
             o._color = attribs["Color"]
             o._surface_material = attribs.get("SurfaceMaterialValue", None)
             if o._surface_material:
-                o._surface_material = o._surface_material[1:-1]
+                o._surface_material = o._surface_material[1:-1].lower()
             if "MaterialValue" in attribs:
-                o._material_name = attribs["MaterialValue"][1:-1]
+                o._material_name = attribs["MaterialValue"][1:-1].lower()
             else:
                 o._material_name = attribs.get("MaterialName", None)
 
@@ -3018,8 +3017,14 @@ class Primitives(object):
 
     def _pos_with_arg(self, pos, units=None):
         posx = self._arg_with_dim(pos[0], units)
-        posy = self._arg_with_dim(pos[1], units)
-        posz = self._arg_with_dim(pos[2], units)
+        if len(pos) < 2:
+            posy = self._arg_with_dim(0, units)
+        else:
+            posy = self._arg_with_dim(pos[1], units)
+        if len(pos) < 3:
+            posz = self._arg_with_dim(0, units)
+        else:
+            posz = self._arg_with_dim(pos[2], units)
 
         return posx, posy, posz
 
@@ -3042,10 +3047,9 @@ class Primitives(object):
         if len(objListSolids) > 0:
             objList.extend(objListSolids)
         for obj in objList:
-            edgeIDs = list(self.oeditor.GetEdgeIDsFromObject(obj))
-            if str(lval) in edgeIDs:
+            val = retry_ntimes(10, self.oeditor.GetEdgeIDsFromObject, obj)
+            if not(isinstance(val, bool)) and str(lval) in list(val):
                 return obj
-
         return None
 
     def _find_object_from_face_id(self, lval):

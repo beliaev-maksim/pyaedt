@@ -114,7 +114,7 @@ def desktop_init():
     # If new_thread is set to false by a local_config, then don't close the desktop.
     # Intended for local debugging purposes only
     if new_thread or os.name == "posix":
-        desktop.force_close_desktop()
+        desktop.close_desktop()
     p = [x[0] for x in os.walk(scratch_path) if "scratch" in x[0]]
     # p = pathlib.Path(scratch_path).glob('**/scratch*')
     for folder in p:
@@ -122,6 +122,28 @@ def desktop_init():
 
     if config["test_desktops"]:
         run_desktop_tests()
+
+
+@pytest.fixture
+def clean_desktop_messages(desktop_init):
+    """Clear all Desktop app messages."""
+    desktop_init.logger.clear_messages(level=3)
+
+
+@pytest.fixture
+def clean_desktop(desktop_init):
+    """Close all projects, but don't close Desktop app."""
+    desktop_init.release_desktop(close_projects=True, close_on_exit=False)
+    return desktop_init
+
+@pytest.fixture
+def hfss():
+    """Create a new Hfss project."""
+    # Be sure that the base class constructor "design" exposes oDesktop.
+    hfss = Hfss(new_desktop_session=False)
+    yield hfss
+    hfss.close_project(hfss.project_name)
+    gc.collect()
 
 
 from functools import wraps
@@ -147,7 +169,6 @@ def pyaedt_unittest_check_desktop_error(func):
     return inner_function
 
 
-#
 # def pyaedt_unittest_same_design(func):
 #     @wraps(func)
 #     def inner_function(*args, **kwargs):

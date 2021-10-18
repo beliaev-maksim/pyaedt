@@ -237,9 +237,9 @@ class Layer(object):
                         "SideRoughness:=",
                         self._arg_with_dim(self.toprounghenss, self.LengthUnitRough),
                         "Material:=",
-                        self._arg_with_dim(self.material),
+                        self.material.lower(),
                         "FillMaterial:=",
-                        self._arg_with_dim(self.fillmaterial),
+                        self.fillmaterial.lower(),
                     ],
                     "Neg:=",
                     self.IsNegative,
@@ -330,7 +330,7 @@ class Layer(object):
                         "SideRoughness:=",
                         0,
                         "Material:=",
-                        self._arg_with_dim(self.material),
+                        self.material.lower(),
                     ],
                 ]
             )
@@ -416,9 +416,9 @@ class Layer(object):
                         "SideRoughness:=",
                         self._arg_with_dim(self.toprounghenss, self.LengthUnitRough),
                         "Material:=",
-                        self.material,
+                        self.material.lower(),
                         "FillMaterial:=",
-                        self.fillmaterial,
+                        self.fillmaterial.lower(),
                     ],
                     "Neg:=",
                     self.IsNegative,
@@ -513,7 +513,7 @@ class Layer(object):
                         "SideRoughness:=",
                         0,
                         "Material:=",
-                        self.material,
+                        self.material.lower(),
                     ],
                 ]
             )
@@ -555,6 +555,11 @@ class Layers(object):
     def _messenger(self):
         """Messenger."""
         return self._parent._messenger
+
+    @property
+    def logger(self):
+        """Logger."""
+        return self._parent.logger
 
     @property
     def modeler(self):

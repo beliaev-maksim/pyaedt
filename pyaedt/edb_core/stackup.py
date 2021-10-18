@@ -65,6 +65,11 @@ class EdbStackup(object):
         return self.parent._messenger
 
     @property
+    def logger(self):
+        """Logger."""
+        return self.parent.logger
+
+    @property
     def stackup_layers(self):
         """Stackup layers.
 
@@ -262,7 +267,7 @@ class EdbStackup(object):
         bool
             ``True`` when successful, ``False`` when failed.
         """
-        stackup = self._builder.EdbHandler.layout.GetLayerCollection()
+        stackup = self._active_layout.GetLayerCollection()
         if only_metals:
             input_layers = self._edb.Cell.LayerTypeSet.SignalLayerSet
         else:
