@@ -266,16 +266,6 @@ class EdbStackup(object):
         layer_list = convert_py_list_to_net_list(non_stackup_layers)
         new_lc.AddLayers(layer_list)
         if self._active_layout.SetLayerCollection(new_lc):
-            cell_name = self._active_layout.GetCell().GetName()
-            cell_inst = self._edb.Cell.Hierarchy.CellInstance.FindByName(self._active_layout, cell_name)
-            cell_trans = cell_inst.GetTransform()
-            _angle = self._edb_value(angle * math.pi / 180.0)
-            _offset_x = self._edb_value(offset_x)
-            _offset_y = self._edb_value(offset_y)
-            cell_trans.SetRotationValue(_angle)
-            cell_trans.SetXOffsetValue(_offset_x)
-            cell_trans.SetYOffsetValue(_offset_y)
-            cell_trans.SetMirror(mirror)
             cmp_list = [cmp for cmp in self._active_layout.Groups if cmp.GetComponent() is not None]
             for cmp in cmp_list:
                 cmp_type = cmp.GetComponentType()
@@ -290,6 +280,21 @@ class EdbStackup(object):
                         die_prop.SetOrientation(self._edb.Definition.DieOrientation.ChipDown)
                         cmp_prop.SetDieProperty(die_prop)
                 cmp.SetComponentProperty(cmp_prop)
+            cell_name = self._active_layout.GetCell().GetName()
+            self._active_layout.GetCell().SetName(cell_name+"_Transform")
+            _angle = self._edb_value(angle * math.pi / 180.0)
+            _offset_x = self._edb_value(offset_x)
+            _offset_y = self._edb_value(offset_y)
+            new_cell = self._edb.Cell.Cell.Create(self._db, self._edb.Cell.CellType.CircuitCell, cell_name)
+            cell_inst2 = self._edb.Cell.Hierarchy.CellInstance.Create(new_cell.GetLayout(), cell_name+"_Transform",
+                                                                      self._active_layout)
+            cell_trans = cell_inst2.GetTransform()
+            cell_trans.SetRotationValue(_angle)
+            cell_trans.SetXOffsetValue(_offset_x)
+            cell_trans.SetYOffsetValue(_offset_y)
+            cell_trans.SetMirror(mirror)
+            cell_inst2.SetTransform(cell_trans)
+            new_cell.GetLayout().SetLayerCollection(self._active_layout.GetLayerCollection())
             return True
 
         else:
