@@ -286,7 +286,7 @@ class EdbStackup(object):
             _offset_x = self._edb_value(offset_x)
             _offset_y = self._edb_value(offset_y)
             new_cell = self._edb.Cell.Cell.Create(self._db, self._edb.Cell.CellType.CircuitCell, cell_name)
-            cell_inst2 = self._edb.Cell.Hierarchy.CellInstance.Create(new_cell.GetLayout(), cell_name+"_Transform",
+            cell_inst2 = self._edb.Cell.Hierarchy.CellInstance.Create(new_cell.GetLayout(), cell_name + "_Transform",
                                                                       self._active_layout)
             cell_trans = cell_inst2.GetTransform()
             cell_trans.SetRotationValue(_angle)
